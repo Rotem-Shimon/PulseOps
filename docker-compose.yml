@@ -1,0 +1,124 @@
+# FILE: docker-compose.yml
+# One-command PulseOps stack: OpenSearch + Dashboards + Collector.
+# - Default run is REPLAY (stable demo). Switch to LIVE by passing MODE=live at run.
+# - Env var names match collector.py exactly.
+
+services:
+  # ============================================================================
+  # OpenSearch (single node, NO SSL, NO auth)
+  # Exposes REST API on http://localhost:9200 and Performance Analyzer on 9600.
+  # ============================================================================
+  opensearch-node1:
+    image: opensearchproject/opensearch:2.11.1
+    container_name: opensearch-node1
+
+    environment:
+      # --- Node / cluster ---
+      - cluster.name=opensearch-cluster          # Arbitrary cluster name
+      - node.name=opensearch-node1               # Node name
+      - discovery.type=single-node               # Single-node bootstrap
+
+      # --- Security plugin ---
+      - plugins.security.disabled=true           # Disable security plugin (NO SSL, NO auth)
+
+      # --- JVM heap (adjust to your machine) ---
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m   # Small heap to run on modest PCs
+
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile:  { soft: 65536, hard: 65536 }
+
+    ports:
+      - "9200:9200"   # REST API (HTTP)
+      - "9600:9600"   # Performance Analyzer
+
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data  # Persist indices (local named volume)
+
+    # Simple readiness probe — marks service healthy once HTTP answers.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  # ============================================================================
+  # OpenSearch Dashboards (UI)
+  # Connects to OpenSearch over HTTP (no SSL) and DISABLES the security plugin,
+  # so the UI loads WITHOUT a login screen (dev/demo convenience).
+  # ============================================================================
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
+    container_name: opensearch-dashboards
+
+    ports:
+      - "5601:5601"   # Web UI -> http://localhost:5601
+
+    environment:
+      # Point Dashboards to OpenSearch service name (inside the compose network)
+      OPENSEARCH_HOSTS: "http://opensearch-node1:9200"
+
+      # Disable Dashboards security plugin (no username/password prompt)
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+    # Optional: mark UI healthy when status API says 'available'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status | grep -q 'available' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 20
+
+  # ------------------------------------------------------------------
+  # Collector service (runs your Python collector inside Docker)
+  # - Uses env names EXACTLY as in collector.py:
+  #     OPENSEARCH_HOST / OPENSEARCH_PORT / OPENSEARCH_USER / OPENSEARCH_PASS / INDEX_NAME / MODE
+  # - Default MODE is 'replay'. To run LIVE: set MODE=live at run.
+  # ------------------------------------------------------------------
+  collector:
+    build:
+      context: ./collector        # contains collector.py, requirements.txt, Dockerfile
+      dockerfile: Dockerfile
+    container_name: pulseops-collector
+
+    environment:
+      MODE: ${MODE:-replay}       # Default mode is replay; user can override at run
+
+      # Connection details for OpenSearch 
+      OPENSEARCH_HOST: "opensearch-node1"
+      OPENSEARCH_PORT: "9200"
+      OPENSEARCH_USER: "admin"
+      OPENSEARCH_PASS: "admin"
+
+      # Index name and basic pacing/timeouts
+      INDEX_NAME: "pulseops-weather"
+      LOOP_DELAY_SEC: "60"
+      HTTP_TIMEOUT_SEC: "5"
+      MAX_RETRIES: "3"
+      CB_FAIL_THRESHOLD: "5"
+      CB_SLEEP_SEC: "30"
+
+      # Optional replay settings
+      # REPLAY_FILE: "data/replay/weather.jsonl"
+      # FAULT_EVERY_N: "0"
+      # FAULT_PROB: "0.0"
+
+      # Optional city coords for LIVE mode (collector has defaults: Tel Aviv)
+      # CITY_LAT: "32.0853"
+      # CITY_LON: "34.7818"
+
+    depends_on:
+      opensearch-node1:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+# ------------------------------------------------------------------------------
+# Persistent storage for OpenSearch data.
+# ------------------------------------------------------------------------------
+volumes:
+  opensearch-data:
+    driver: local
