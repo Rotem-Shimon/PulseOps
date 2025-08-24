@@ -1,52 +1,100 @@
-# PulseOps — NOC Demo ⚡
+# ⚡ PulseOps — NOC Demo
 
-One-command **OpenSearch + Dashboards + Python collector** that streams weather metrics and visualizes them. Built to impress fast.
+One-command monitoring stack (**OpenSearch + Dashboards + Python Collector**)  
+📊 Streams weather metrics → real-time **NOC-style dashboards**.
 
-## Run (LIVE) 🚀
-Windows (PowerShell)
-    
-    $env:MODE="live"; docker compose up -d --build
-    docker compose down   # stop
+---
 
-macOS / Linux
+## 🖼️ Screenshots
 
-    MODE=live docker compose up -d --build
-    docker compose down   # stop
+<p align="center">
+  <img src="docs/screenshots/dashboard-overview.png" alt="NOC Dashboard" width="48%"/>
+  <img src="docs/screenshots/discover-live.png" alt="Discover View" width="48%"/>
+</p>
 
-> 💡 If `MODE` isn’t set, the stack defaults to **replay**.
+**Left:** NOC Dashboard — latency spikes & error counts (fault injection visible).  
+**Right:** Discover view — raw weather telemetry (timestamp, status, latency, temp, wind).
 
-## Open it 🔌
-- Dashboards → http://localhost:5601  
-- API → http://localhost:9200
+---
 
-## First-time UI (10s) 🧭
-Management → **Index patterns** → **Create** → pattern `pulseops-weather*`, time field `timestamp` → **Discover** (Last 15 minutes).
+## 💡 Why This Design
 
-## What’s inside 🧰
-- **OpenSearch** (data) + **Dashboards** (UI) + **collector** (Python)  
-- Index: `pulseops-weather` → `timestamp`, `status`, `latency_ms`, `temperature`, `windspeed`
+- **OpenSearch + Dashboards** → open-source, industry familiar, zero licensing friction  
+- **Replay default** → stable demo + inject incident patterns not guaranteed live  
+- **Fault injection** → practice anomaly detection (HTTP 500/429, latency spikes)  
+- **Stable index mapping** → fields pre-defined for clean dashboards  
+- **Single-node, no SSL/auth** → intentional for demo speed (prod differs)  
 
-## Screenshots 🖼️
-Place files under `docs/screenshots/`:
-- `docs/screenshots/discover-live.png` — Discover (Live data)
-- `docs/screenshots/dashboard-overview.png` — NOC Dashboard (overview)
+👉 Shows ability to stand up a monitoring stack, stream telemetry, simulate incidents, and visualize in a NOC-ready dashboard.
 
-## Project layout 🗂️
+---
+
+## 🛠️ Stack & Skills
+
+**Stack:** Docker, OpenSearch, Dashboards, Python (`requests`, `opensearch-py`)  
+**Skills shown:** Monitoring, log streaming, fault injection, incident simulation
+
+---
+
+## 🚀 Run
+
+**Replay (default) — recommended for demo**
+```bash
+# Windows
+docker compose up -d --build
+# macOS / Linux
+docker compose up -d --build
+```
+
+**Live — pull real weather (Open-Meteo)**
+```powershell
+# Windows (PowerShell)
+$env:MODE="live"; docker compose up -d --build
+```
+```bash
+# macOS / Linux
+MODE=live docker compose up -d --build
+```
+
+Stop:
+```bash
+docker compose down
+```
+
+---
+
+## 🔌 Access
+
+- Dashboards (UI):  http://localhost:5601  
+- OpenSearch API:   http://localhost:9200
+
+---
+
+## 📂 Project Structure
+```
 PulseOps/
-├─ docker-compose.yml
-├─ .gitignore
-├─ LICENSE
-├─ README.md
-├─ collector/
+├─ docker-compose.yml      # stack (OpenSearch + Dashboards + collector)
+├─ collector/              # Python collector service (LIVE/REPLAY + faults)
 │  ├─ collector.py
 │  ├─ Dockerfile
 │  └─ requirements.txt
-└─ docs/
-   └─ screenshots/
+└─ docs/screenshots/       # demo screenshots
+```
 
+---
 
-## Quick fixes 🧯
-No data? `docker compose ps` → `docker compose logs -f collector`  
-Docker hiccup? Restart Docker Desktop (Windows tip: `wsl --shutdown`).
+## 🧯 Quick fixes
 
-MIT © PulseOps
+```bash
+# See services
+docker compose ps
+
+# Tail collector logs
+docker compose logs -f collector
+```
+
+Docker wonky on Windows? Restart Docker Desktop (tip: `wsl --shutdown`).
+
+---
+
+📜 MIT © PulseOps
